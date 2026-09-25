@@ -1,0 +1,11 @@
+#CloudFromationTemplateVersion
+#Description
+#Resources
+
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'AWS CloudFormation template for S3 bucket'
+Resources:
+  S3Bucket:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      BucketName: 'sambasten-cf26'
