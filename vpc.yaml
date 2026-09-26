@@ -79,3 +79,50 @@ Resources:
       Tags:
       - Key: Name
         Value: DBPrivateSubnet2B
+
+  #Internet Gateway
+  InternetGateway:
+    Type: 'AWS::EC2::InternetGateway'
+    Properties:
+      Tags: 
+      - Key: Name
+        Value: VPC-IntGW
+
+  #Attach GW to the VPC
+  AttachGateway:
+    Type: 'AWS::EC2::VPCGatewayAttachment'
+    Properties:
+      VpcId: !Ref sambastenVPC
+      InternetGatewayId: !Ref InternetGateway
+
+  #Public Route Table
+  PublicRouteTable:
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId: !Ref sambastenVPC
+      Tags:
+      - Key: Name
+        Value: PublicRouteTable
+
+  #Public Route
+  PublicRoute:
+    Type: 'AWS::EC2::Route'
+    DependsOn: AttachGateway
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+  
+  #PublicSubnet1A Route Table Associations
+  PublicSubnet1ARouteTableAssociations:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      SubnetId: !Ref PublicSubnet1A
+      RouteTableId: !Ref PublicRouteTable
+
+  #PublicSubnet2B Route Table Associations
+  PublicSubnet2BRouteTableAssociations:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      SubnetId: !Ref PublicSubnet2B
+      RouteTableId: !Ref PublicRouteTable
