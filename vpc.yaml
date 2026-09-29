@@ -152,10 +152,62 @@ Resources:
           FromPort: '22'
           ToPort: '22'
           CidrIp: '136.226.130.245/32'
-          Description: 'Allow SSH from work laptop'
+          Description: 'Allow SSH from personal laptop'
         - IpProtocol: tcp
           FromPort: '22'
           ToPort: '22'
           CidrIp: '173.34.166.225/32'
-          Description: 'Allow SSH from personal laptop'
+          Description: 'Allow SSH from work laptop'
+  
+  #App Instance 1A
+  AppInstance1A:
+    Type: 'AWS::EC2::Instance'
+    Properties:
+      InstanceType: 't2.micro'
+      KeyName: sambasten-bastionkeypair
+      ImageId: 'ami-08be4b1b8afa29958'
+      SubnetId: !Ref AppPrivateSubnet1A
+      SecurityGroupIds:
+        - !Ref AppInstance1ASG
+      Tags:
+      - Key: Name
+        Value: AppInstance1A
 
+  #App Instance 1A
+  AppInstance2B:
+    Type: 'AWS::EC2::Instance'
+    Properties:
+      InstanceType: 't2.micro'
+      ImageId: 'ami-08be4b1b8afa29958'
+      SubnetId: !Ref AppPrivateSubnet2B
+      SecurityGroupIds:
+        - !Ref AppInstance2BSG
+      Tags:
+      - Key: Name
+        Value: AppInstance2B
+
+  #App Instance 1A Security Group
+  AppInstance1ASG:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: 'App Instance Security Group'
+      VpcId: !Ref sambastenVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '22'
+          ToPort: '22'
+          SourceSecurityGroupId: !Ref BastionSecurityGroup
+          Description: 'Allow SSH from  bastion host'
+
+  #App Instance 2B Security Group
+  AppInstance2BSG:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: 'App Instance Security Group'
+      VpcId: !Ref sambastenVPC
+      SecurityGroupIngress:
+        - IpProtocol: icmp
+          FromPort: '-1'
+          ToPort: '-1'
+          SourceSecurityGroupId: !Ref AppInstance1ASG
+          Description: 'Allow ICMP ping from  AppInstance1A'
