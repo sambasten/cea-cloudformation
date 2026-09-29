@@ -151,5 +151,6 @@ Resources:
         - IpProtocol: tcp
           FromPort: '22'
           ToPort: '22'
-          CidrIp: '136.226.130.245/32'
+          CidrIp: '173.34.166.225/32'
+          Description: 'Allow SSH from personal laptop'
 
