@@ -1,0 +1,56 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'AWS CloudFormation template for IAM'
+
+Resources:
+  #IAMUser
+  myIAMUser:
+    Type: 'AWS::IAM::User'
+    Properties:
+      UserName: 'cfuser'
+      ManagedPolicyArns: 
+        - 'arn:aws:iam::aws:policy/AdministratorAccess'
+
+  #devIAMGroup
+  devIAMGroup:
+    Type: 'AWS::IAM::Group'
+    Properties:
+      GroupName: 'devIAMGroup'
+
+  #Attach user to group
+  attachUserToGroup:
+    Type: 'AWS::IAM::UserToGroupAddition'
+    Properties:
+      Users: 
+        - !Ref myIAMUser
+      GroupName: !Ref devIAMGroup
+
+  #ec2toS3Role
+  ec2toS3Role:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument: 
+        Version: "2012-10-17"
+        Statement:
+          Effect: Allow
+          Principal:
+            Service: "ec2.amazonaws.com"
+          Action: "sts:AssumeRole"
+      Description: 'ec2 role to s3 bucket'
+      RoleName: 'ec2toS3Role'
+  
+  #ec2toS3Role policy
+  ec2toS3RolePolicy:
+    Type: AWS::IAM::RolePolicy
+    Properties:
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          Effect: Allow
+          Action:
+            - "s3:GetObject"
+          Resource: "arn:aws:s3:::sambasten-cf26/*"
+      PolicyName: 'ec2toS3RolePolicy'
+      RoleName: !Ref ec2toS3Role
+
+
+
