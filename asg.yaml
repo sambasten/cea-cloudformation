@@ -1,0 +1,211 @@
+#Start VPC 
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'AWS CloudFormation template for autoscaling group'
+
+Resources:
+  # VPC
+  sambastenVPC:
+    Type: 'AWS::EC2::VPC'
+    Properties:
+      CidrBlock: '172.16.0.0/16'
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: sambastenVPC
+  #Public Subnet in AZ1
+  PublicSubnet1A:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref sambastenVPC
+      CidrBlock: '172.16.1.0/24'   
+      AvailabilityZone: !Select [0, !GetAZs '']
+      MapPublicIpOnLaunch: true
+      Tags:
+      - Key: Name
+        Value: PublicSubnet1A   
+  
+  #App Private Subnet in AZ1
+  AppPrivateSubnet1A:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref sambastenVPC
+      CidrBlock: '172.16.2.0/24'
+      AvailabilityZone: !Select [0, !GetAZs '']
+      Tags:
+      - Key: Name
+        Value: AppPrivateSubnet1A
+    
+  
+  #DB Private Subnet in AZ1
+  DBPrivateSubnet1A:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref sambastenVPC
+      CidrBlock: '172.16.3.0/24'
+      AvailabilityZone: !Select [0, !GetAZs '']
+      Tags:
+      - Key: Name
+        Value: DBPrivateSubnet1A
+
+  #Public Subnet in AZ2
+  PublicSubnet2B:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref sambastenVPC
+      CidrBlock: '172.16.4.0/24'
+      AvailabilityZone: !Select [1, !GetAZs '']
+      MapPublicIpOnLaunch: true
+      Tags:
+      - Key: Name
+        Value: PublicSubnet2B
+
+  #App Private Subnet in AZ2
+  AppPrivateSubnet2B:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref sambastenVPC
+      CidrBlock: '172.16.5.0/24'
+      AvailabilityZone: !Select [1, !GetAZs '']
+      Tags:
+      - Key: Name
+        Value: AppPrivateSubnet2B
+
+  #DB Private Subnet in AZ2q
+  DBPrivateSubnet2B:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref sambastenVPC
+      CidrBlock: '172.16.6.0/24'
+      AvailabilityZone: !Select [1, !GetAZs '']
+      Tags:
+      - Key: Name
+        Value: DBPrivateSubnet2B
+
+  #Internet Gateway
+  InternetGateway:
+    Type: 'AWS::EC2::InternetGateway'
+    Properties:
+      Tags: 
+      - Key: Name
+        Value: VPC-IntGW
+
+  #Attach GW to the VPC
+  AttachGateway:
+    Type: 'AWS::EC2::VPCGatewayAttachment'
+    Properties:
+      VpcId: !Ref sambastenVPC
+      InternetGatewayId: !Ref InternetGateway
+
+  #Public Route Table
+  PublicRouteTable:
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId: !Ref sambastenVPC
+      Tags:
+      - Key: Name
+        Value: PublicRouteTable
+
+  #Public Route
+  PublicRoute:
+    Type: 'AWS::EC2::Route'
+    DependsOn: AttachGateway
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+  
+  #PublicSubnet1A Route Table Associations
+  PublicSubnet1ARouteTableAssociations:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      SubnetId: !Ref PublicSubnet1A
+      RouteTableId: !Ref PublicRouteTable
+
+  #PublicSubnet2B Route Table Associations
+  PublicSubnet2BRouteTableAssociations:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      SubnetId: !Ref PublicSubnet2B
+      RouteTableId: !Ref PublicRouteTable
+#End of VPC
+
+  #WebServerSG
+  WebServerSG:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: 'Enable http access'
+      VpcId: !Ref sambastenVPC
+      SecurityGroupIngress:
+        - IpProtocol: 'tcp'
+          FromPort: '80'
+          ToPort: '80'
+          CidrIp: '0.0.0.0/0'
+        - IpProtocol: 'tcp'
+          FromPort: '22'
+          ToPort: '22'
+          CidrIp: '3.16.146.0/29'
+  
+  #ASG Launch Template
+  MyASGLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateData:
+        ImageId: 'ami-08be4b1b8afa29958'
+        InstanceType: 't2.micro'
+        SecurityGroupIds: 
+          - !Ref WebServerSG
+        UserData: 
+          Fn::Base64: !Sub |
+            #!/bin/bash
+            yum install -y httpd
+            yum install -y stress
+            systemctl start httpd
+            systemctl enable httpd
+            echo "Hello from autoscaling instance" > /var/www/html/index.html
+ 
+
+  #Auto Scaling Group
+  MyASG:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      LaunchTemplate: 
+        LaunchTemplateId: !Ref MyASGLaunchTemplate
+        Version: !GetAtt MyASGLaunchTemplate.LatestVersionNumber
+      MaxSize: '3'
+      MinSize: '1'
+      DesiredCapacity: '1'
+      VPCZoneIdentifier: 
+        - !Ref PublicSubnet1A
+        - !Ref PublicSubnet2B
+
+  #Cloud Watch Alarm
+  HighCPUAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmActions: 
+        - !Ref ScaleOutPolicy
+      AlarmDescription: 'Alarm when CPU exceeds 70%'
+      ComparisonOperator: 'GreaterThanThreshold'
+      Dimensions: 
+        - Name: AutoScalingGroupName
+          Value: !Ref MyASG
+      EvaluationPeriods: 1
+      MetricName: 'CPUUtilization'
+      Namespace: 'AWS/EC2'
+      Period: 60
+      Statistic: 'Average'
+      Threshold: 70
+
+  #Scale Out Policy
+  ScaleOutPolicy:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AdjustmentType: 'ChangeInCapacity'
+      AutoScalingGroupName: !Ref MyASG
+      Cooldown: '1'
+      PolicyType: 'SimpleScaling'
+      ScalingAdjustment: '1'
+
+
+
